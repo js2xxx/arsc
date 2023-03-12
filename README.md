@@ -30,5 +30,5 @@ impl A {
 ## Note
 
 - Still need a global memory allocator. For environments where dynamic allocation is not supported, use some heapless structure instead.
-- Be careful that `Arsc` is vulnerable to cyclic references! Use `Arc` if its possible.
+- Be careful that `Arsc` is vulnerable to cyclic references! Use `Arc` if those cases are possible.
 - This crate use some nightly-only features, so an up-to-date nightly toolchain is required to build this crate.

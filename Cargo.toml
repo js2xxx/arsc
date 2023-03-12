@@ -2,10 +2,13 @@
 authors = ["Js2xxx <akucxy@163.com>"]
 categories = ["no-std", "rust-patterns"]
 description = "Atomic Reference-Strongly-Counted pointer"
+documentation = "https://docs.rs/arsc-rs"
 edition = "2021"
+homepage = "https://github.com/js2xxx/arsc"
 keywords = ["rust-patterns", "no-std"]
 license = "MIT OR Apache-2.0"
 name = "arsc-rs"
+repository = "https://github.com/js2xxx/arsc"
 version = "0.1.0"
 
 [dependencies]
