@@ -1,0 +1,13 @@
+[package]
+authors = ["Js2xxx <akucxy@163.com>"]
+categories = ["no-std", "rust-patterns"]
+description = "Atomic Reference-Strongly-Counted pointer"
+edition = "2021"
+keywords = ["rust-patterns", "no-std"]
+license = "MIT OR Apache-2.0"
+name = "arsc-rs"
+version = "0.1.0"
+
+[dependencies]
+log = "0.4"
+memoffset = "0.8"
