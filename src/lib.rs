@@ -5,12 +5,14 @@
 #![feature(dispatch_from_dyn)]
 #![feature(layout_for_ptr)]
 #![feature(pointer_byte_offsets)]
+#![feature(slice_ptr_get)]
 #![feature(receiver_trait)]
 #![feature(unsize)]
 
 extern crate alloc;
 
 use alloc::alloc::Global;
+use alloc::vec::Vec;
 use core::{
     alloc::{AllocError, Allocator, Layout},
     any::Any,
@@ -19,7 +21,7 @@ use core::{
     mem::{self, ManuallyDrop, MaybeUninit},
     ops::{CoerceUnsized, Deref, DispatchFromDyn, Receiver},
     pin::Pin,
-    ptr::{self, NonNull},
+    ptr::{self, addr_of_mut, NonNull},
     sync::atomic::{self, AtomicUsize, Ordering::*},
 };
 
@@ -93,7 +95,7 @@ impl<T> Arsc<T, Global> {
 
     #[inline]
     pub fn new(data: T) -> Self {
-        Self::try_new(data).expect("Failed to create an Arsc")
+        Self::try_new(data).expect("failed to create an Arsc")
     }
 
     #[inline]
@@ -104,6 +106,11 @@ impl<T> Arsc<T, Global> {
     #[inline]
     pub fn try_new_uninit() -> Result<Arsc<MaybeUninit<T>, Global>, AllocError> {
         Self::try_new_uninit_in(Global)
+    }
+
+    #[inline]
+    pub fn new_uninit() -> Arsc<MaybeUninit<T>, Global> {
+        Self::try_new_uninit().expect("failed to create an Arsc")
     }
 
     pub fn try_unwrap(this: Self) -> Result<T, Self> {
@@ -126,12 +133,90 @@ impl<T> Arsc<T, Global> {
     }
 }
 
+impl<T, A: Allocator> Arsc<[T], A> {
+    #[allow(clippy::type_complexity)]
+    unsafe fn allocate_slice(
+        len: usize,
+        alloc: A,
+    ) -> Result<NonNull<ArscInner<[MaybeUninit<T>], A>>, AllocError> {
+        let (layout, _) = Layout::new::<ArscInner<(), A>>()
+            .extend(Layout::array::<T>(len).unwrap())
+            .unwrap();
+        let layout = layout.pad_to_align();
+
+        let mem = alloc.allocate(layout)?;
+        let inner = ptr::slice_from_raw_parts_mut(mem.as_mut_ptr().cast::<T>(), len)
+            as *mut ArscInner<[MaybeUninit<T>], A>;
+        addr_of_mut!((*inner).ref_count).write(AtomicUsize::new(1));
+        addr_of_mut!((*inner).alloc).write(ManuallyDrop::new(alloc));
+        Ok(NonNull::new_unchecked(inner))
+    }
+
+    pub fn try_new_uninit_slice_in(
+        len: usize,
+        alloc: A,
+    ) -> Result<Arsc<[MaybeUninit<T>], A>, AllocError> {
+        unsafe {
+            let inner = Self::allocate_slice(len, alloc)?;
+            Ok(Arsc::from_inner(inner))
+        }
+    }
+
+    pub fn try_new_uninit_slice(len: usize) -> Result<Arsc<[MaybeUninit<T>]>, AllocError> {
+        Arsc::try_new_uninit_slice_in(len, Global)
+    }
+
+    pub fn new_uninit_slice_in(len: usize, alloc: A) -> Arsc<[MaybeUninit<T>], A> {
+        Self::try_new_uninit_slice_in(len, alloc).expect("failed to create an Arsc")
+    }
+
+    pub fn new_uninit_slice(len: usize) -> Arsc<[MaybeUninit<T>]> {
+        Self::try_new_uninit_slice(len).expect("failed to create an Arsc")
+    }
+
+    unsafe fn copy_from_slice(slice: &[T], alloc: A) -> Self {
+        let mut inner = Self::allocate_slice(slice.len(), alloc).expect("failed to create an Arsc");
+        inner
+            .as_mut()
+            .data
+            .as_mut_ptr()
+            .copy_from_nonoverlapping(slice.as_ptr() as _, slice.len());
+        Self::from_inner(mem::transmute(inner))
+    }
+}
+
 impl<T, A: Allocator> Arsc<MaybeUninit<T>, A> {
     /// # Safety
     ///
     /// The caller must ensure a valid value of `T` stored in the `Arsc`.
     pub unsafe fn assume_init(this: Self) -> Arsc<T, A> {
         unsafe { Arsc::from_inner(ManuallyDrop::new(this).inner.cast()) }
+    }
+}
+
+impl<T, A: Allocator> Arsc<[MaybeUninit<T>], A> {
+    /// # Safety
+    ///
+    /// The caller must ensure a valid array of `T` stored in the `Arsc`.
+    pub unsafe fn assume_init(this: Self) -> Arsc<[T], A> {
+        unsafe { Arsc::from_inner(mem::transmute(ManuallyDrop::new(this).inner)) }
+    }
+}
+
+impl<T, A: Allocator + Clone> From<Vec<T, A>> for Arsc<[T], A> {
+    fn from(mut value: Vec<T, A>) -> Self {
+        let alloc = value.allocator().clone();
+        unsafe {
+            let ret = Self::copy_from_slice(&value, alloc);
+            value.set_len(0);
+            ret
+        }
+    }
+}
+
+impl<T> FromIterator<T> for Arsc<[T]> {
+    fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
+        iter.into_iter().collect::<Vec<_>>().into()
     }
 }
 
@@ -362,4 +447,3 @@ impl<T: ?Sized + Ord, A: Allocator> Ord for Arsc<T, A> {
         self.deref().cmp(other)
     }
 }
-
