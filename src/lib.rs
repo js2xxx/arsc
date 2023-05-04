@@ -20,6 +20,7 @@ use core::{
     marker::{PhantomData, Unsize},
     mem::{self, ManuallyDrop, MaybeUninit},
     ops::{CoerceUnsized, Deref, DispatchFromDyn, Receiver},
+    panic::{RefUnwindSafe, UnwindSafe},
     pin::Pin,
     ptr::{self, addr_of_mut, NonNull},
     sync::atomic::{self, AtomicUsize, Ordering::*},
@@ -447,3 +448,7 @@ impl<T: ?Sized + Ord, A: Allocator> Ord for Arsc<T, A> {
         self.deref().cmp(other)
     }
 }
+
+impl<T: ?Sized, A: Allocator + Unpin> Unpin for Arsc<T, A> {}
+
+impl<T: RefUnwindSafe + ?Sized, A: Allocator + UnwindSafe> UnwindSafe for Arsc<T, A> {}
