@@ -16,6 +16,7 @@ use alloc::vec::Vec;
 use core::{
     alloc::{AllocError, Allocator, Layout},
     any::Any,
+    borrow::Borrow,
     fmt,
     marker::{PhantomData, Unsize},
     mem::{self, ManuallyDrop, MaybeUninit},
@@ -452,3 +453,15 @@ impl<T: ?Sized + Ord, A: Allocator> Ord for Arsc<T, A> {
 impl<T: ?Sized, A: Allocator + Unpin> Unpin for Arsc<T, A> {}
 
 impl<T: RefUnwindSafe + ?Sized, A: Allocator + UnwindSafe> UnwindSafe for Arsc<T, A> {}
+
+impl<T: ?Sized, A: Allocator> Borrow<T> for Arsc<T, A> {
+    fn borrow(&self) -> &T {
+        self
+    }
+}
+
+impl<T: ?Sized, A: Allocator> AsRef<T> for Arsc<T, A> {
+    fn as_ref(&self) -> &T {
+        self
+    }
+}

@@ -9,7 +9,7 @@ keywords = ["rust-patterns", "no-std"]
 license = "MIT OR Apache-2.0"
 name = "arsc-rs"
 repository = "https://github.com/js2xxx/arsc"
-version = "0.1.1"
+version = "0.1.2"
 
 [dependencies]
 log = "0.4"
